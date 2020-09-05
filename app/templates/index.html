@@ -1,0 +1,225 @@
+<!DOCTYPE html "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <title>サンプル：住所から座標を取得</title>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=xxxxxxxxxxx&callback=initMap"></script>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="./js/code1_1.js" type="text/javascript"></script>
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
+      integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous" />
+    <!-- jQuery?????Y -->
+    <!-- Bootstrap?IJS?????Y -->
+    <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js"
+      integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n"
+      crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"
+      integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo"
+      crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"
+      integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6"
+      crossorigin="anonymous"></script>
+  </head>
+
+  <body onload="initMap()" onunload="GUnload()">
+    <nav class="navbar navbar-expand-sm navbar-dark bg-dark mt-3 mb-3 justify-content-center">
+      <a class="navbar-brand" href="#">ぐるなび検索ソート</a>
+    </nav>
+
+    <div class="container">
+      <div class="justify-content-center">
+        <div class="row">
+          <div class="col-5">
+            <form action="/search" method="POST" class="form-group">
+              <div class="label label-info">
+                <p>
+                  中心地検索：<input class="form-control" type="text" name="center_address" size="40" />
+                </p>
+              </div>
+              <p>
+                お店検索：<input class="form-control" type="text" name="restaurants" size="40" />
+              </p>
+              <p>
+                優先事項：
+                <select name="priority" id="select1a" class=" form-control ">
+                  <option value="distance">距離</option>
+                  <option value="lunch_price">ランチ予算</option>
+                  <option value="parking">駐車場の広さ</option>
+                </select>
+              </p>
+              <p>
+                <input type="submit" class="btn btn-outline-primary" value="セット" />
+                <input type="button" class="btn btn-outline-primary" value="実行" onclick="addMarkers();createTable()" />
+              </p>
+            </form>
+            <div id="map_canvas" style="width: 400px; height: 400px"></div>
+          </div>
+
+          <div class="col-7">
+            <div class="table-responsive">
+              <div class="table">
+                <table id="restaurants_table_head" border="1" class="table table-bordered table-striped">
+                  <thead>
+                    <tr>
+                      <th>番号</th>
+                      <th>店名</th>
+                      <th>距離(m)</th>
+                      <th>時間</th>
+                      <th>平均ランチ価格</th>
+                      <th>駐車場数</th>
+                      <th>イメージ画像</th>
+                    </tr>
+                  </thead>
+                  <tbody id="restaurants_table_body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <form action="/search_route" method="POST">
+        <p></p>
+      </form>
+    </div>
+
+    <!--latlngタグを受け取りたいけど表示させないため-->
+    <div>
+      <p id="center_latlng" hidden>{{center_latlng}}</p>
+      <p id="restaurants_str" hidden>{{restaurants_str}}</p>
+    </div>
+
+    <footer class="footer ">
+      <div class="container">
+        <p class="text-muted ">
+          <a href="https://api.gnavi.co.jp/api/scope/" target="_blank">
+            <img src="https://api.gnavi.co.jp/api/img/credit/api_265_65.gif" width="265" height="65" border="0"
+              alt="グルメ情報検索サイト　ぐるなび" />
+          </a>
+        </p>
+      </div>
+    </footer>
+
+    <script>
+      var map;
+      var latlng = document.getElementById("center_latlng").textContent;
+      latlng_obj = JSON.parse(latlng);
+      var restaurants = document.getElementById("restaurants_str").textContent;
+      restaurants = JSON.parse(restaurants);
+      var marker;
+      var markers = [];
+      var infowindows = [];
+      //初期設定を行っている
+      function initMap() {
+        map = new google.maps.Map(document.getElementById("map_canvas"), {
+          zoom: 16,
+          center: latlng_obj
+        });
+        marker = new google.maps.Marker({
+          position: latlng_obj,
+          map: map
+        });
+      }
+
+      //文字列で辞書の集合を受け取りマーカーを立てる
+      function addMarkers() {
+        if (restaurants.length == 0) {
+          alert("検索結果に該当するものがありませんでした。");
+        }
+        for (var i = 0; i < restaurants.length; i++) {
+          markers[i] = new google.maps.Marker({
+            position: restaurants[i]["latlng"],
+            map: map,
+            icon: {
+              fillColor: "#FF0000", //塗り潰し色
+              fillOpacity: 0.8, //塗り潰し透過率
+              path: google.maps.SymbolPath.CIRCLE, //円を指定
+              scale: 8, //円のサイズ
+              strokeColor: "#FF0000", //枠の色
+              strokeWeight: 1.0 //枠の透過率
+            },
+            label: {
+              text: String(i), //ラベル文字
+              color: "#FFFFFF", //文字の色
+              fontSize: "10px" //文字のサイズ
+            }
+          });
+          infowindows[i] = new google.maps.InfoWindow({
+            content:
+              "<a href=" +
+              restaurants[i]["url"] +
+              ' target="_blank">' +
+              restaurants[i]["name"] +
+              "</a>"
+          });
+          markersEvent(i);
+        }
+
+        function markersEvent(i) {
+          markers[i].addListener("click", function () {
+            infowindows[i].open(map, markers[i]);
+          });
+        }
+      }
+
+      //jsonをもとにtable作成
+      function createTable() {
+        var table = document.getElementById("restaurants_table_body");
+        var row;
+        var num;
+        var name;
+        var direction;
+        var duration;
+        var lunch_price;
+        var parking;
+        var img;
+
+        for (var i = 0; i < restaurants.length; i++) {
+          row = table.insertRow(-1);
+
+          num = row.insertCell(0);
+          name = row.insertCell(1);
+          distance = row.insertCell(2);
+          duration = row.insertCell(3);
+          lunch_price = row.insertCell(4);
+          parking = row.insertCell(5);
+          img = row.insertCell(6);
+          num.innerHTML = i;
+          name.innerHTML =
+            "<a href=" +
+            restaurants[i]["url"] +
+            ' target="_blank">' +
+            restaurants[i]["name"] +
+            "</a>";
+          distance.innerHTML = restaurants[i]["distance"];
+          duration.innerHTML = restaurants[i]["duration"];
+          lunch_price.innerHTML = restaurants[i]["lunch_price"];
+          parking.innerHTML = restaurants[i]["parking"];
+          if (restaurants[i]["img"] == "") {
+            img.innerHTML =
+              '<img src=static\\not_found.png width="100" height="100">';
+          } else {
+            img.innerHTML =
+              "<img src=" +
+              restaurants[i]["img"] +
+              ' width="100" height="100">';
+          }
+        }
+      }
+    </script>
+
+    <!-- BootstrapのCSS読み込み -->
+    <link href="css/bootstrap.min.css" rel="stylesheet" />
+    <!-- jQuery読み込み -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+    <!-- BootstrapのJS読み込み -->
+    <script src="js/bootstrap.min.js"></script>
+  </body>
+
+</html>
